@@ -48,12 +48,6 @@
               inputsFrom = [
                 llvm_18
               ];
-              buildInputs = [
-                gcc
-                llvm_18
-                cmake
-                ninja
-              ];
             };
         };
     };
