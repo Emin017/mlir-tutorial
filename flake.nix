@@ -48,6 +48,7 @@
               inputsFrom = [
                 llvm_18
               ];
+              buildInputs = [ gdb ];
             };
         };
     };
