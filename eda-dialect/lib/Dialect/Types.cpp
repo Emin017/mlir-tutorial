@@ -7,56 +7,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "eda-dialect/Types.h"
+#include "mlir/IR/Builders.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "llvm/ADT/TypeSwitch.h"
 
 using namespace mlir;
-namespace eda {
 
-//===----------------------------------------------------------------------===//
-// StringType
-//===----------------------------------------------------------------------===//
-
-bool StringType::classof(Type type) {
-  return type.isa<::mlir::IntegerType, ::mlir::FloatType, ::mlir::StringType>();
-}
-
-//===----------------------------------------------------------------------===//
-// ListType
-//===----------------------------------------------------------------------===//
-
-LogicalResult ListType::verify(
-    function_ref<InFlightDiagnostic()> emitError,
-    Type elementType) {
-  if (!elementType)
-    return emitError() << "list element type cannot be null";
-  return success();
-}
-
-//===----------------------------------------------------------------------===//
-// DictType
-//===----------------------------------------------------------------------===//
-
-LogicalResult DictType::verify(
-    function_ref<InFlightDiagnostic()> emitError,
-    Type keyType, Type valueType) {
-  if (!keyType)
-    return emitError() << "dict key type cannot be null";
-  if (!valueType)
-    return emitError() << "dict value type cannot be null";
-  return success();
-}
-
-//===----------------------------------------------------------------------===//
-// VariableType
-//===----------------------------------------------------------------------===//
-
-LogicalResult VariableType::verify(
-    function_ref<InFlightDiagnostic()> emitError,
-    Type containedType) {
-  if (!containedType)
-    return emitError() << "variable contained type cannot be null";
-  return success();
-}
-
-} // namespace eda
+// TableGen-generated type implementation code
+#define GET_TYPEDEF_CLASSES
+#include "eda-dialect/EDATypes.cpp.inc"

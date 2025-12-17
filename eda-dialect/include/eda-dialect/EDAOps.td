@@ -12,6 +12,8 @@
 include "mlir/IR/OpBase.td"
 include "mlir/IR/SymbolInterfaces.td"
 include "mlir/Interfaces/ControlFlowInterfaces.td"
+include "mlir/Interfaces/FunctionInterfaces.td"
+include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/LoopLikeInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 
@@ -24,7 +26,6 @@ include "eda-dialect/EDATypes.td"
 
 class EDA_VariableOp<string mnemonic, list<Trait> traits = []> :
     Op<EDA_Dialect, mnemonic, traits> {
-  let assemblyFormat = "`(` $name `,` $value `)` attr-dict `:` functional-type($inputs, $results)";
 }
 
 def AssignOp : EDA_VariableOp<"assign"> {
@@ -44,8 +45,11 @@ def AssignOp : EDA_VariableOp<"assign"> {
   );
 
   let builders = [
-    OpBuilder<(ins "StringRef":$name, "Value":$value)>
+    OpBuilder<(ins "::llvm::StringRef":$name, "::mlir::Value":$value)>
   ];
+
+  let hasCustomAssemblyFormat = 1;
+  let hasVerifier = 1;
 }
 
 def LoadOp : EDA_VariableOp<"load"> {
@@ -64,8 +68,10 @@ def LoadOp : EDA_VariableOp<"load"> {
   );
 
   let builders = [
-    OpBuilder<(ins "StringRef":$name)>
+    OpBuilder<(ins "::llvm::StringRef":$name)>
   ];
+
+  let hasCustomAssemblyFormat = 1;
 }
 
 def StoreOp : EDA_VariableOp<"store"> {
@@ -83,21 +89,23 @@ def StoreOp : EDA_VariableOp<"store"> {
   let results = (outs);
 
   let builders = [
-    OpBuilder<(ins "StringRef":$name, "Value":$value)>
+    OpBuilder<(ins "::llvm::StringRef":$name, "::mlir::Value":$value)>
   ];
+
+  let hasCustomAssemblyFormat = 1;
 }
 
 //===----------------------------------------------------------------------===//
 // Arithmetic Operations
 //===----------------------------------------------------------------------===//
 
-class EDA_ArithOp<string mnemonic, Type resultType> :
-    Op<EDA_Dialect, mnemonic, [Commutative]> {
-  let summary = strconcat("Arithmetic ", mnemonic, " operation");
+class EDA_ArithOp<string mnemonic> :
+    Op<EDA_Dialect, mnemonic, [Commutative, DeclareOpInterfaceMethods<InferTypeOpInterface>]> {
+  let summary = "Arithmetic " # mnemonic # " operation";
   let assemblyFormat = "`(` $lhs `,` $rhs `)` attr-dict `:` `(` type($lhs) `,` type($rhs) `)` `->` type($result)";
 }
 
-def AddOp : EDA_ArithOp<"add", AnyType> {
+def AddOp : EDA_ArithOp<"add"> {
   let description = [{
     Performs addition on two values. Supports integer, floating-point,
     and string concatenation.
@@ -111,9 +119,10 @@ def AddOp : EDA_ArithOp<"add", AnyType> {
   let results = (outs
     AnyType:$result
   );
+
 }
 
-def SubOp : EDA_ArithOp<"sub", AnyType> {
+def SubOp : EDA_ArithOp<"sub"> {
   let description = [{
     Performs subtraction on two numeric values.
   }];
@@ -128,7 +137,7 @@ def SubOp : EDA_ArithOp<"sub", AnyType> {
   );
 }
 
-def MulOp : EDA_ArithOp<"mul", AnyType> {
+def MulOp : EDA_ArithOp<"mul"> {
   let description = [{
     Performs multiplication on two numeric values.
   }];
@@ -143,7 +152,7 @@ def MulOp : EDA_ArithOp<"mul", AnyType> {
   );
 }
 
-def DivOp : EDA_ArithOp<"div", AnyType> {
+def DivOp : EDA_ArithOp<"div"> {
   let description = [{
     Performs division on two numeric values.
   }];
@@ -162,8 +171,8 @@ def DivOp : EDA_ArithOp<"div", AnyType> {
 // Comparison Operations
 //===----------------------------------------------------------------------===//
 
-class EDA_CmpOp<string mnemonic> : Op<EDA_Dialect, mnemonic> {
-  let summary = strconcat("Comparison ", mnemonic, " operation");
+class EDA_CmpOp<string mnemonic> : Op<EDA_Dialect, mnemonic, [DeclareOpInterfaceMethods<InferTypeOpInterface>]> {
+  let summary = "Comparison " # mnemonic # " operation";
   let assemblyFormat = "`(` $lhs `,` $rhs `)` attr-dict `:` `(` type($lhs) `,` type($rhs) `)` `->` type($result)";
 }
 
@@ -216,7 +225,7 @@ def CmpLtOp : EDA_CmpOp<"cmp_lt"> {
 // Logical Operations
 //===----------------------------------------------------------------------===//
 
-def AndOp : Op<EDA_Dialect, "and", [Commutative]> {
+def AndOp : Op<EDA_Dialect, "and", [Commutative, DeclareOpInterfaceMethods<InferTypeOpInterface>]> {
   let summary = "Logical AND operation";
   let description = [{
     Performs logical AND on two boolean values.
@@ -234,7 +243,7 @@ def AndOp : Op<EDA_Dialect, "and", [Commutative]> {
   let assemblyFormat = "`(` $lhs `,` $rhs `)` attr-dict `:` type($result)";
 }
 
-def OrOp : Op<EDA_Dialect, "or", [Commutative]> {
+def OrOp : Op<EDA_Dialect, "or", [Commutative, DeclareOpInterfaceMethods<InferTypeOpInterface>]> {
   let summary = "Logical OR operation";
   let description = [{
     Performs logical OR on two boolean values.
@@ -252,7 +261,7 @@ def OrOp : Op<EDA_Dialect, "or", [Commutative]> {
   let assemblyFormat = "`(` $lhs `,` $rhs `)` attr-dict `:` type($result)";
 }
 
-def NotOp : Op<EDA_Dialect, "not"> {
+def NotOp : Op<EDA_Dialect, "not", [DeclareOpInterfaceMethods<InferTypeOpInterface>]> {
   let summary = "Logical NOT operation";
   let description = [{
     Performs logical NOT on a boolean value.
@@ -291,7 +300,7 @@ def PutsOp : Op<EDA_Dialect, "puts"> {
   let hasVerifier = 1;
 }
 
-def FormatOp : Op<EDA_Dialect, "format"> {
+def FormatOp : Op<EDA_Dialect, "format", [DeclareOpInterfaceMethods<InferTypeOpInterface>]> {
   let summary = "Format a string";
   let description = [{
     Formats a string using a format pattern and arguments.
@@ -309,7 +318,7 @@ def FormatOp : Op<EDA_Dialect, "format"> {
   let assemblyFormat = "`(` $pattern `,` $args `)` attr-dict `:` functional-type($args, results)";
 }
 
-def ConcatOp : Op<EDA_Dialect, "concat", [Commutative]> {
+def ConcatOp : Op<EDA_Dialect, "concat", [Commutative, DeclareOpInterfaceMethods<InferTypeOpInterface>]> {
   let summary = "Concatenate strings";
   let description = [{
     Concatenates multiple strings into one.
@@ -333,7 +342,6 @@ def ConcatOp : Op<EDA_Dialect, "concat", [Commutative]> {
 def IfOp : Op<EDA_Dialect, "if", [
   DeclareOpInterfaceMethods<RegionBranchOpInterface>,
   NoRegionArguments,
-  RecursiveSideEffects,
   SingleBlockImplicitTerminator<"eda::YieldOp">
 ]> {
   let summary = "If-then-else operation";
@@ -356,23 +364,16 @@ def IfOp : Op<EDA_Dialect, "if", [
   );
 
   let assemblyFormat = [{
-    $condition `,` $thenRegion (`:` $elseRegion^)? attr-dict `:` functional-type($arguments, $results)
+    $condition `,` $thenRegion (`:` $elseRegion^)? attr-dict `:` functional-type($condition, $results)
   }];
 
-  let skipDefaultBuilders = 1;
   let builders = [
-    OpBuilder<(ins "Value":$condition, "TypeRange":$resultTypes,
-      CArg<"function_ref<void(OpBuilder &, Location)>":$thenBuilder",
-      CArg<"function_ref<void(OpBuilder &, Location)>":$elseBuilder">),
-    [{
-      build($_builder, $_state, condition, resultTypes, thenBuilder, elseBuilder);
-    }]>
+    OpBuilder<(ins "::mlir::Value":$condition, "::mlir::TypeRange":$resultTypes)>
   ];
 }
 
 def ForOp : Op<EDA_Dialect, "for", [
   DeclareOpInterfaceMethods<LoopLikeOpInterface>,
-  RecursiveSideEffects,
   SingleBlockImplicitTerminator<"eda::YieldOp">
 ]> {
   let summary = "For loop operation";
@@ -393,14 +394,11 @@ def ForOp : Op<EDA_Dialect, "for", [
     SizedRegion<1>:$body
   );
 
-  let assemblyFormat = {
-    $start `to` $end (`step` $step^)? $body attr-dict
-  };
+  let assemblyFormat = "operands attr-dict `:` type(operands) $body";
 }
 
 def WhileOp : Op<EDA_Dialect, "while", [
   DeclareOpInterfaceMethods<LoopLikeOpInterface>,
-  RecursiveSideEffects,
   SingleBlockImplicitTerminator<"eda::YieldOp">
 ]> {
   let summary = "While loop operation";
@@ -418,13 +416,11 @@ def WhileOp : Op<EDA_Dialect, "while", [
     SizedRegion<1>:$body
   );
 
-  let assemblyFormat = {
-    $cond `,` $body attr-dict
-  };
+  let assemblyFormat = "`(` $cond `)` `,` $body attr-dict";
 }
 
 def YieldOp : Op<EDA_Dialect, "yield", [
-  NoSideEffects,
+  Pure,
   ReturnLike,
   Terminator
 ]> {
@@ -439,6 +435,10 @@ def YieldOp : Op<EDA_Dialect, "yield", [
   );
 
   let assemblyFormat = "`(` $operands `)` attr-dict `:` type($operands)";
+
+  let builders = [
+    OpBuilder<(ins)>
+  ];
 }
 
 def BreakOp : Op<EDA_Dialect, "break", [Terminator]> {
@@ -471,8 +471,7 @@ def ContinueOp : Op<EDA_Dialect, "continue", [Terminator]> {
 def FuncOp : Op<EDA_Dialect, "func", [
   AutomaticAllocationScope,
   IsolatedFromAbove,
-  Symbol,
-  FunctionOpInterface
+  Symbol
 ]> {
   let summary = "Function operation";
   let description = [{
@@ -492,28 +491,20 @@ def FuncOp : Op<EDA_Dialect, "func", [
   );
 
   let builders = [
-    OpBuilder<(ins "StringRef":$name, "FunctionType":$type,
-      CArg<"function_ref<void(OpBuilder &, Location)>":$bodyBuilder")>
+    OpBuilder<(ins "::llvm::StringRef":$name, "::mlir::FunctionType":$type)>
   ];
 
-  let parser = [{ return mlir::function_interface_impl::parseFunctionOp(parser, result); }];
-  let printer = [{ return mlir::function_interface_impl::printFunctionOp(p, result); }];
-
   let extraClassDeclaration = [{
-    using function_interface_impl::FunctionOpInterface::getFunctionBody;
-
     /// Returns the argument types of this function.
-    ArrayRef<Type> getArgumentTypes() { return getFunctionType().getInputs(); }
+    ::llvm::ArrayRef<::mlir::Type> getArgumentTypes() { return getFunctionType().getInputs(); }
 
     /// Returns the result types of this function.
-    ArrayRef<Type> getResultTypes() { return getFunctionType().getResults(); }
+    ::llvm::ArrayRef<::mlir::Type> getResultTypes() { return getFunctionType().getResults(); }
   }];
 }
 
 def CallOp : Op<EDA_Dialect, "call", [
-  CallOpInterface,
-  MemoryEffects<[]>,
-  AttrSizedOperandSegments
+  MemoryEffects<[]>
 ]> {
   let summary = "Call operation";
   let description = [{
@@ -534,7 +525,7 @@ def CallOp : Op<EDA_Dialect, "call", [
   }];
 
   let builders = [
-    OpBuilder<(ins "FuncOp":$callee, "ValueRange":$operands)>
+    OpBuilder<(ins "::eda::FuncOp":$callee, "::mlir::ValueRange":$operands)>
   ];
 
   let extraClassDeclaration = [{
@@ -564,7 +555,7 @@ def ReturnOp : Op<EDA_Dialect, "return", [
 // File System Operations
 //===----------------------------------------------------------------------===//
 
-def FileExistsOp : Op<EDA_Dialect, "file_exists", [NoSideEffects]> {
+def FileExistsOp : Op<EDA_Dialect, "file_exists", [Pure, DeclareOpInterfaceMethods<InferTypeOpInterface>]> {
   let summary = "Check if file exists";
   let description = [{
     Checks if a file exists at the given path.
@@ -581,7 +572,7 @@ def FileExistsOp : Op<EDA_Dialect, "file_exists", [NoSideEffects]> {
   let assemblyFormat = "`(` $path `)` attr-dict `:` `(` type($path) `)` `->` type($result)";
 }
 
-def FileReadOp : Op<EDA_Dialect, "file_read", [MemoryEffects<[MemRead]>]> {
+def FileReadOp : Op<EDA_Dialect, "file_read", [MemoryEffects<[MemRead]>, DeclareOpInterfaceMethods<InferTypeOpInterface>]> {
   let summary = "Read file contents";
   let description = [{
     Reads the entire contents of a file into a string.
@@ -611,10 +602,10 @@ def FileWriteOp : Op<EDA_Dialect, "file_write", [MemoryEffects<[MemWrite]>]> {
 
   let results = (outs);
 
-  let assemblyFormat = "`(` $path `,` $content `)` attr-dict `:` functional-type(arguments, results)";
+  let assemblyFormat = "`(` $path `,` $content `)` attr-dict `:` functional-type($path, $content)";
 }
 
-def FileGlobOp : Op<EDA_Dialect, "file_glob", [NoSideEffects]> {
+def FileGlobOp : Op<EDA_Dialect, "file_glob", [Pure, DeclareOpInterfaceMethods<InferTypeOpInterface>]> {
   let summary = "Glob pattern matching";
   let description = [{
     Finds files matching a glob pattern.
@@ -635,7 +626,7 @@ def FileGlobOp : Op<EDA_Dialect, "file_glob", [NoSideEffects]> {
 // Constant Operations
 //===----------------------------------------------------------------------===//
 
-def ConstantOp : Op<EDA_Dialect, "constant", [ConstantLike, NoSideEffects]> {
+def ConstantOp : Op<EDA_Dialect, "constant", [ConstantLike, Pure]> {
   let summary = "Constant operation";
   let description = [{
     Defines a constant value.
@@ -652,19 +643,10 @@ def ConstantOp : Op<EDA_Dialect, "constant", [ConstantLike, NoSideEffects]> {
   let assemblyFormat = "`(` $value `)` attr-dict `:` type($result)";
 
   let builders = [
-    OpBuilder<(ins "Attribute":$value)>
+    OpBuilder<(ins "::mlir::Attribute":$value)>
   ];
 
-  let verifier = [{
-    if (!value().getType().isa<IntegerType, FloatType, StringAttr>())
-      return emitOpError("only integer, float, or string attributes are supported");
-    return success();
-  }];
-
-  let extraClassDeclaration = [{
-    /// Get the constant value.
-    Attribute getValue() { return (*this)->getAttr("value"); }
-  }];
+  let hasFolder = 1;
 }
 
 #endif // EDA_OPS

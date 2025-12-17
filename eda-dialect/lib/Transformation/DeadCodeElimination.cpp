@@ -7,11 +7,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "eda-dialect/Ops.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Dominance.h"
 #include "mlir/IR/IRMapping.h"
 #include "mlir/Interfaces/ControlFlowInterfaces.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Transforms/Utils.h"
 
 using namespace mlir;
 
@@ -61,13 +62,15 @@ public:
 private:
   /// Check if an operation can be safely removed without side effects
   bool isOpTriviallyDead(Operation *op) {
-    // Skip operations with side effects
-    if (op->hasTrait<OpTrait::HasSideEffects>())
-      return false;
-
     // Skip terminator operations
     if (op->hasTrait<OpTrait::IsTerminator>())
       return false;
+
+    // Skip operations with side effects (check via MemoryEffectOpInterface)
+    if (auto memEffects = dyn_cast<MemoryEffectOpInterface>(op)) {
+      if (!memEffects.hasNoEffect())
+        return false;
+    }
 
     // Skip function operations
     if (isa<FuncOp>(op))

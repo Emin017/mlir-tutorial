@@ -9,10 +9,12 @@
 #include "eda-dialect/Ops.h"
 #include "eda-dialect/Dialect.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Region.h"
+#include "mlir/IR/SymbolTable.h"
 #include "mlir/Transforms/InliningUtils.h"
 
 using namespace mlir;
@@ -25,7 +27,7 @@ namespace eda {
 
 ParseResult AssignOp::parse(OpAsmParser &parser, OperationState &result) {
   StringAttr nameAttr;
-  Value value;
+  OpAsmParser::UnresolvedOperand value;
 
   if (parser.parseLParen())
     return failure();
@@ -46,14 +48,14 @@ ParseResult AssignOp::parse(OpAsmParser &parser, OperationState &result) {
     return failure();
 
   // Parse the type
-  Type resultType;
-  if (parser.parseColon())
+  Type valueType, resultType;
+  if (parser.parseColon() || parser.parseLParen() || parser.parseType(valueType) ||
+      parser.parseRParen() || parser.parseArrow() || parser.parseType(resultType))
     return failure();
 
-  if (parser.parseType(resultType))
+  if (parser.resolveOperand(value, valueType, result.operands))
     return failure();
 
-  result.addOperands(value);
   result.addTypes(resultType);
   result.addAttribute("name", nameAttr);
 
@@ -112,7 +114,7 @@ void LoadOp::print(OpAsmPrinter &p) {
 
 ParseResult StoreOp::parse(OpAsmParser &parser, OperationState &result) {
   StringAttr nameAttr;
-  Value value;
+  OpAsmParser::UnresolvedOperand value;
 
   if (parser.parseLParen())
     return failure();
@@ -133,14 +135,14 @@ ParseResult StoreOp::parse(OpAsmParser &parser, OperationState &result) {
     return failure();
 
   // Parse the type signature
-  FunctionType type;
-  if (parser.parseColon())
+  Type valueType;
+  if (parser.parseColon() || parser.parseLParen() || parser.parseType(valueType) ||
+      parser.parseRParen() || parser.parseArrow())
     return failure();
 
-  if (parser.parseType(type))
+  if (parser.resolveOperand(value, valueType, result.operands))
     return failure();
 
-  result.addOperands(value);
   result.addAttribute("name", nameAttr);
 
   return success();
@@ -155,139 +157,6 @@ void StoreOp::print(OpAsmPrinter &p) {
 }
 
 //===----------------------------------------------------------------------===//
-// Arithmetic Operations
-//===----------------------------------------------------------------------===//
-
-LogicalResult AddOp::inferReturnTypes(
-    MLIRContext *context, std::optional<Location> location,
-    ValueRange operands, DictionaryAttr attributes,
-    OpaqueProperties properties, RegionRange regions,
-    SmallVectorImpl<Type> &inferredReturnTypes) {
-  if (operands.size() != 2)
-    return failure();
-
-  // Result type is the same as the operand type
-  inferredReturnTypes.push_back(operands[0].getType());
-  return success();
-}
-
-LogicalResult SubOp::inferReturnTypes(
-    MLIRContext *context, std::optional<Location> location,
-    ValueRange operands, DictionaryAttr attributes,
-    OpaqueProperties properties, RegionRange regions,
-    SmallVectorImpl<Type> &inferredReturnTypes) {
-  if (operands.size() != 2)
-    return failure();
-
-  inferredReturnTypes.push_back(operands[0].getType());
-  return success();
-}
-
-LogicalResult MulOp::inferReturnTypes(
-    MLIRContext *context, std::optional<Location> location,
-    ValueRange operands, DictionaryAttr attributes,
-    OpaqueProperties properties, RegionRange regions,
-    SmallVectorImpl<Type> &inferredReturnTypes) {
-  if (operands.size() != 2)
-    return failure();
-
-  inferredReturnTypes.push_back(operands[0].getType());
-  return success();
-}
-
-LogicalResult DivOp::inferReturnTypes(
-    MLIRContext *context, std::optional<Location> location,
-    ValueRange operands, DictionaryAttr attributes,
-    OpaqueProperties properties, RegionRange regions,
-    SmallVectorImpl<Type> &inferredReturnTypes) {
-  if (operands.size() != 2)
-    return failure();
-
-  inferredReturnTypes.push_back(operands[0].getType());
-  return success();
-}
-
-//===----------------------------------------------------------------------===//
-// Comparison Operations
-//===----------------------------------------------------------------------===//
-
-LogicalResult CmpEqOp::inferReturnTypes(
-    MLIRContext *context, std::optional<Location> location,
-    ValueRange operands, DictionaryAttr attributes,
-    OpaqueProperties properties, RegionRange regions,
-    SmallVectorImpl<Type> &inferredReturnTypes) {
-  if (operands.size() != 2)
-    return failure();
-
-  inferredReturnTypes.push_back(IntegerType::get(context, 1));
-  return success();
-}
-
-LogicalResult CmpGtOp::inferReturnTypes(
-    MLIRContext *context, std::optional<Location> location,
-    ValueRange operands, DictionaryAttr attributes,
-    OpaqueProperties properties, RegionRange regions,
-    SmallVectorImpl<Type> &inferredReturnTypes) {
-  if (operands.size() != 2)
-    return failure();
-
-  inferredReturnTypes.push_back(IntegerType::get(context, 1));
-  return success();
-}
-
-LogicalResult CmpLtOp::inferReturnTypes(
-    MLIRContext *context, std::optional<Location> location,
-    ValueRange operands, DictionaryAttr attributes,
-    OpaqueProperties properties, RegionRange regions,
-    SmallVectorImpl<Type> &inferredReturnTypes) {
-  if (operands.size() != 2)
-    return failure();
-
-  inferredReturnTypes.push_back(IntegerType::get(context, 1));
-  return success();
-}
-
-//===----------------------------------------------------------------------===//
-// Logical Operations
-//===----------------------------------------------------------------------===//
-
-LogicalResult AndOp::inferReturnTypes(
-    MLIRContext *context, std::optional<Location> location,
-    ValueRange operands, DictionaryAttr attributes,
-    OpaqueProperties properties, RegionRange regions,
-    SmallVectorImpl<Type> &inferredReturnTypes) {
-  if (operands.size() != 2)
-    return failure();
-
-  inferredReturnTypes.push_back(IntegerType::get(context, 1));
-  return success();
-}
-
-LogicalResult OrOp::inferReturnTypes(
-    MLIRContext *context, std::optional<Location> location,
-    ValueRange operands, DictionaryAttr attributes,
-    OpaqueProperties properties, RegionRange regions,
-    SmallVectorImpl<Type> &inferredReturnTypes) {
-  if (operands.size() != 2)
-    return failure();
-
-  inferredReturnTypes.push_back(IntegerType::get(context, 1));
-  return success();
-}
-
-LogicalResult NotOp::inferReturnTypes(
-    MLIRContext *context, std::optional<Location> location,
-    ValueRange operands, DictionaryAttr attributes,
-    OpaqueProperties properties, RegionRange regions,
-    SmallVectorImpl<Type> &inferredReturnTypes) {
-  if (operands.size() != 1)
-    return failure();
-
-  inferredReturnTypes.push_back(IntegerType::get(context, 1));
-  return success();
-}
-
-//===----------------------------------------------------------------------===//
 // System Operations
 //===----------------------------------------------------------------------===//
 
@@ -298,82 +167,43 @@ LogicalResult PutsOp::verify() {
   return success();
 }
 
-LogicalResult FormatOp::inferReturnTypes(
-    MLIRContext *context, std::optional<Location> location,
-    ValueRange operands, DictionaryAttr attributes,
-    OpaqueProperties properties, RegionRange regions,
-    SmallVectorImpl<Type> &inferredReturnTypes) {
-  if (operands.empty())
-    return failure();
-
-  // Return type is always a string
-  inferredReturnTypes.push_back(StringType::get(context));
-  return success();
-}
-
-LogicalResult ConcatOp::inferReturnTypes(
-    MLIRContext *context, std::optional<Location> location,
-    ValueRange operands, DictionaryAttr attributes,
-    OpaqueProperties properties, RegionRange regions,
-    SmallVectorImpl<Type> &inferredReturnTypes) {
-  // Return type is always a string
-  inferredReturnTypes.push_back(StringType::get(context));
-  return success();
-}
-
 //===----------------------------------------------------------------------===//
 // Function Operations
 //===----------------------------------------------------------------------===//
 
 FuncOp CallOp::getCalleeOp() {
-  SymbolTableAttr symbolTable = (*this)->getParentOfType<ModuleOp>()
-                                   .getSymbolTable();
-  return symbolTable.lookup<FuncOp>(getCalleeAttr());
-}
-
-void ReturnOp::build(OpBuilder &builder, OperationState &result,
-                     ValueRange operands) {
-  result.addOperands(operands);
+  return SymbolTable::lookupNearestSymbolFrom<FuncOp>(*this, getCalleeAttr());
 }
 
 //===----------------------------------------------------------------------===//
-// File System Operations
+// Builder implementations for custom signatures
 //===----------------------------------------------------------------------===//
 
-LogicalResult FileExistsOp::inferReturnTypes(
-    MLIRContext *context, std::optional<Location> location,
-    ValueRange operands, DictionaryAttr attributes,
-    OpaqueProperties properties, RegionRange regions,
-    SmallVectorImpl<Type> &inferredReturnTypes) {
-  if (operands.size() != 1)
-    return failure();
-
-  inferredReturnTypes.push_back(IntegerType::get(context, 1));
-  return success();
+void AssignOp::build(OpBuilder &builder, OperationState &state,
+                     StringRef name, Value value) {
+  state.addAttribute("name", builder.getStringAttr(name));
+  state.addOperands(value);
+  state.addTypes(value.getType());
 }
 
-LogicalResult FileReadOp::inferReturnTypes(
-    MLIRContext *context, std::optional<Location> location,
-    ValueRange operands, DictionaryAttr attributes,
-    OpaqueProperties properties, RegionRange regions,
-    SmallVectorImpl<Type> &inferredReturnTypes) {
-  if (operands.size() != 1)
-    return failure();
-
-  inferredReturnTypes.push_back(StringType::get(context));
-  return success();
+void StoreOp::build(OpBuilder &builder, OperationState &state,
+                    StringRef name, Value value) {
+  state.addAttribute("name", builder.getStringAttr(name));
+  state.addOperands(value);
 }
 
-LogicalResult FileGlobOp::inferReturnTypes(
-    MLIRContext *context, std::optional<Location> location,
-    ValueRange operands, DictionaryAttr attributes,
-    OpaqueProperties properties, RegionRange regions,
-    SmallVectorImpl<Type> &inferredReturnTypes) {
-  if (operands.size() != 1)
-    return failure();
+void ConstantOp::build(OpBuilder &builder, OperationState &state,
+                       Attribute value) {
+  auto valueAttr = llvm::dyn_cast<StringAttr>(value);
+  assert(valueAttr && "value must be a StringAttr");
 
-  inferredReturnTypes.push_back(ListType::get(StringType::get(context)));
-  return success();
+  auto stringType = StringType::get(builder.getContext());
+  state.addAttribute("value", valueAttr);
+  state.addTypes(stringType);
+}
+
+void YieldOp::build(OpBuilder &builder, OperationState &state) {
+  // YieldOp has no operands, attributes, or results
 }
 
 //===----------------------------------------------------------------------===//
@@ -386,5 +216,100 @@ OpFoldResult ConstantOp::fold(FoldAdaptor adaptor) {
 
 } // namespace eda
 
+//===----------------------------------------------------------------------===//
+// InferTypeOpInterface implementations
+//===----------------------------------------------------------------------===//
+
+// Arithmetic operations infer result types from operands
+mlir::LogicalResult eda::AddOp::inferReturnTypes(
+    mlir::MLIRContext *context, std::optional<mlir::Location> location,
+    mlir::ValueRange operands, mlir::DictionaryAttr attributes,
+    mlir::OpaqueProperties properties, mlir::RegionRange regions,
+    llvm::SmallVectorImpl<mlir::Type> &inferredReturnTypes) {
+  if (operands.empty())
+    return mlir::failure();
+  inferredReturnTypes.push_back(operands[0].getType());
+  return mlir::success();
+}
+
+mlir::LogicalResult eda::SubOp::inferReturnTypes(
+    mlir::MLIRContext *context, std::optional<mlir::Location> location,
+    mlir::ValueRange operands, mlir::DictionaryAttr attributes,
+    mlir::OpaqueProperties properties, mlir::RegionRange regions,
+    llvm::SmallVectorImpl<mlir::Type> &inferredReturnTypes) {
+  if (operands.empty())
+    return mlir::failure();
+  inferredReturnTypes.push_back(operands[0].getType());
+  return mlir::success();
+}
+
+mlir::LogicalResult eda::MulOp::inferReturnTypes(
+    mlir::MLIRContext *context, std::optional<mlir::Location> location,
+    mlir::ValueRange operands, mlir::DictionaryAttr attributes,
+    mlir::OpaqueProperties properties, mlir::RegionRange regions,
+    llvm::SmallVectorImpl<mlir::Type> &inferredReturnTypes) {
+  if (operands.empty())
+    return mlir::failure();
+  inferredReturnTypes.push_back(operands[0].getType());
+  return mlir::success();
+}
+
+mlir::LogicalResult eda::DivOp::inferReturnTypes(
+    mlir::MLIRContext *context, std::optional<mlir::Location> location,
+    mlir::ValueRange operands, mlir::DictionaryAttr attributes,
+    mlir::OpaqueProperties properties, mlir::RegionRange regions,
+    llvm::SmallVectorImpl<mlir::Type> &inferredReturnTypes) {
+  if (operands.empty())
+    return mlir::failure();
+  inferredReturnTypes.push_back(operands[0].getType());
+  return mlir::success();
+}
+
+// File operations return ListType
+mlir::LogicalResult eda::FileGlobOp::inferReturnTypes(
+    mlir::MLIRContext *context, std::optional<mlir::Location> location,
+    mlir::ValueRange operands, mlir::DictionaryAttr attributes,
+    mlir::OpaqueProperties properties, mlir::RegionRange regions,
+    llvm::SmallVectorImpl<mlir::Type> &inferredReturnTypes) {
+  auto stringType = eda::StringType::get(context);
+  inferredReturnTypes.push_back(eda::ListType::get(context, stringType));
+  return mlir::success();
+}
+
+//===----------------------------------------------------------------------===//
+// LoopLikeOpInterface implementations
+//===----------------------------------------------------------------------===//
+
+llvm::SmallVector<mlir::Region *> eda::ForOp::getLoopRegions() {
+  llvm::SmallVector<mlir::Region *> regions;
+  regions.push_back(&getBody());
+  return regions;
+}
+
+llvm::SmallVector<mlir::Region *> eda::WhileOp::getLoopRegions() {
+  llvm::SmallVector<mlir::Region *> regions;
+  regions.push_back(&getCond());
+  regions.push_back(&getBody());
+  return regions;
+}
+
+//===----------------------------------------------------------------------===//
+// RegionBranchOpInterface implementations
+//===----------------------------------------------------------------------===//
+
+void eda::IfOp::getSuccessorRegions(mlir::RegionBranchPoint point,
+                                     llvm::SmallVectorImpl<mlir::RegionSuccessor> &regions) {
+  // The then and else regions branch back to the parent operation
+  if (!point.isParent()) {
+    regions.push_back(mlir::RegionSuccessor(getResults()));
+    return;
+  }
+
+  // If the condition is constant, we can give a more precise answer
+  regions.push_back(mlir::RegionSuccessor(&getThenRegion()));
+  regions.push_back(mlir::RegionSuccessor(&getElseRegion()));
+}
+
+// Include TableGen generated op definitions
 #define GET_OP_CLASSES
 #include "eda-dialect/EDAOps.cpp.inc"

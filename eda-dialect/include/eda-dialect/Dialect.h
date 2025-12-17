@@ -10,35 +10,20 @@
 #define EDA_DIALECT_H
 
 #include "mlir/IR/Dialect.h"
-#include "mlir/IR/Types.h"
+#include "mlir/IR/BuiltinTypes.h"
+#include "mlir/IR/OpDefinition.h"
+#include "mlir/IR/OpImplementation.h"
 
-// Generated headers
+// Forward declarations
+namespace eda {
+class EDADialect;
+} // namespace eda
+
+// Include the generated dialect base definition
 #include "eda-dialect/EDADialect.h.inc"
 
-namespace eda {
-
-/// The EDA dialect provides operations for generating TCL scripts.
-class EDADialect : public mlir::Dialect {
-public:
-  explicit EDADialect(mlir::MLIRContext *context);
-
-  /// Get the singleton instance of the EDA dialect.
-  static EDADialect &get(mlir::MLIRContext *context) {
-    return *context->getLoadedDialect<EDADialect>();
-  }
-
-  /// Parse a type registered to this dialect.
-  mlir::Type parseType(mlir::DialectAsmParser &parser) const override;
-
-  /// Print a type registered to this dialect.
-  void printType(mlir::Type type,
-                 mlir::DialectAsmPrinter &printer) const override;
-
-private:
-  /// Register the types of this dialect.
-  void registerTypes();
-};
-
-} // namespace eda
+// Include types and operations
+#include "eda-dialect/Types.h"
+#include "eda-dialect/Ops.h"
 
 #endif // EDA_DIALECT_H

@@ -11,8 +11,7 @@
 
 include "mlir/IR/AttrTypeBase.td"
 include "mlir/Interfaces/DataLayoutInterfaces.td"
-
-def EDA_Dialect : Dialect;
+include "eda-dialect/EDADialect.td"
 
 //===----------------------------------------------------------------------===//
 // TCL String Type
@@ -26,7 +25,7 @@ class EDA_StringType<string name> : TypeDef<EDA_Dialect, name> {
     Represents a string value in TCL, which can contain any sequence of characters.
   }];
 
-  let parameters = [];
+  let parameters = (ins);
 }
 
 def StringType : EDA_StringType<"String">;
@@ -47,6 +46,8 @@ class EDA_ListType<string name> : TypeDef<EDA_Dialect, name> {
   let parameters = (ins
     "Type" : $elementType
   );
+
+  let assemblyFormat = "`<` $elementType `>`";
 }
 
 def ListType : EDA_ListType<"List">;
@@ -68,6 +69,8 @@ class EDA_DictType<string name> : TypeDef<EDA_Dialect, name> {
     "Type" : $keyType,
     "Type" : $valueType
   );
+
+  let assemblyFormat = "`<` $keyType `,` $valueType `>`";
 }
 
 def DictType : EDA_DictType<"Dict">;
@@ -88,6 +91,8 @@ class EDA_VariableType<string name> : TypeDef<EDA_Dialect, name> {
   let parameters = (ins
     "Type" : $containedType
   );
+
+  let assemblyFormat = "`<` $containedType `>`";
 }
 
 def VariableType : EDA_VariableType<"Variable">;
@@ -105,9 +110,9 @@ class EDA_AnyType<string name> : TypeDef<EDA_Dialect, name> {
     This is used for type-erased operations and dynamic typing.
   }];
 
-  let parameters = [];
+  let parameters = (ins);
 }
 
-def AnyType : EDA_AnyType<"Any">;
+def EDAAnyType : EDA_AnyType<"Any">;
 
 #endif // EDA_TYPES

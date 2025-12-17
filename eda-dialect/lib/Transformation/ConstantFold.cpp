@@ -91,8 +91,7 @@ struct KnownConditionalFold : public OpRewritePattern<IfOp> {
     if (isTrue && op.getElseRegion().empty()) {
       // Move operations from then region to parent
       Block &thenBlock = op.getThenRegion().front();
-      rewriter.inlineBlockBefore(&thenBlock, op.getOperation(),
-                                 op.getOperands());
+      rewriter.inlineBlockBefore(&thenBlock, op.getOperation());
 
       // Remove the if operation
       rewriter.eraseOp(op);
@@ -103,8 +102,7 @@ struct KnownConditionalFold : public OpRewritePattern<IfOp> {
     if (!isTrue && !op.getElseRegion().empty()) {
       // Move operations from else region to parent
       Block &elseBlock = op.getElseRegion().front();
-      rewriter.inlineBlockBefore(&elseBlock, op.getOperation(),
-                                 op.getOperands());
+      rewriter.inlineBlockBefore(&elseBlock, op.getOperation());
 
       // Remove the if operation
       rewriter.eraseOp(op);
