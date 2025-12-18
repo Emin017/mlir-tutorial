@@ -72,34 +72,281 @@ LogicalResult TclCodeGenerator::translateModule(ModuleOp module) {
 
 LogicalResult TclCodeGenerator::translateOp(Operation *op, int indent) {
   // Handle different operation types
+
+  // Handle constant operations
+  if (auto constOp = dyn_cast<ConstantOp>(op)) {
+    if (auto intAttr = constOp.getValue().dyn_cast<IntegerAttr>()) {
+      // For i1 types (booleans), normalize the output
+      if (constOp.getResult().getType().isInteger(1)) {
+        os << this->indent(indent) << "# constant bool: "
+           << (intAttr.getValue() != 0 ? "true" : "false") << "\n";
+      } else {
+        os << this->indent(indent) << "# constant int: " << intAttr.getInt() << "\n";
+      }
+    } else if (auto stringAttr = constOp.getValue().dyn_cast<StringAttr>()) {
+      os << this->indent(indent) << "set const \"" << stringAttr.getValue() << "\"\n";
+    }
+    return success();
+  }
+
   if (auto assignOp = dyn_cast<AssignOp>(op)) {
     os << this->indent(indent) << "set " << assignOp.getNameAttr().getValue()
        << " ";
-    // TODO: handle value
+
+    // Try to inline the value if it's a constant
+    Value val = assignOp.getValue();
+    if (auto constOp = val.getDefiningOp<ConstantOp>()) {
+      if (auto intAttr = constOp.getValue().dyn_cast<IntegerAttr>()) {
+        os << intAttr.getInt();
+      } else if (auto stringAttr = constOp.getValue().dyn_cast<StringAttr>()) {
+        os << "\"" << stringAttr.getValue() << "\"";
+      }
+    } else {
+      // Reference to another variable
+      os << "$var";
+    }
     os << "\n";
     return success();
   }
 
   if (auto loadOp = dyn_cast<LoadOp>(op)) {
-    os << this->indent(indent) << "# Load variable: " << loadOp.getNameAttr().getValue() << "\n";
+    os << this->indent(indent) << "set loaded_" << loadOp.getNameAttr().getValue()
+       << " $" << loadOp.getNameAttr().getValue() << "\n";
     return success();
   }
 
   if (auto storeOp = dyn_cast<StoreOp>(op)) {
     os << this->indent(indent) << "set " << storeOp.getNameAttr().getValue()
-       << " $value\n";
+       << " ";
+
+    // Try to inline the value if it's a constant
+    Value val = storeOp.getValue();
+    if (auto constOp = val.getDefiningOp<ConstantOp>()) {
+      if (auto intAttr = constOp.getValue().dyn_cast<IntegerAttr>()) {
+        os << intAttr.getInt();
+      } else if (auto stringAttr = constOp.getValue().dyn_cast<StringAttr>()) {
+        os << "\"" << stringAttr.getValue() << "\"";
+      }
+    } else {
+      os << "$var";
+    }
+    os << "\n";
     return success();
   }
 
   if (auto putsOp = dyn_cast<PutsOp>(op)) {
-    os << this->indent(indent) << "puts \"";
-    // TODO: handle puts arguments
-    os << "\"\n";
+    os << this->indent(indent) << "puts ";
+
+    // Handle puts arguments
+    if (!putsOp.getArgs().empty()) {
+      Value arg = putsOp.getArgs()[0];
+      if (auto constOp = arg.getDefiningOp<ConstantOp>()) {
+        if (auto stringAttr = constOp.getValue().dyn_cast<StringAttr>()) {
+          os << "\"" << stringAttr.getValue() << "\"";
+        } else if (auto intAttr = constOp.getValue().dyn_cast<IntegerAttr>()) {
+          os << intAttr.getInt();
+        }
+      } else {
+        os << "$var";
+      }
+    }
+    os << "\n";
     return success();
   }
 
+  // Handle arithmetic operations
   if (auto addOp = dyn_cast<AddOp>(op)) {
-    os << this->indent(indent) << "# add operation\n";
+    os << this->indent(indent) << "set result [expr {";
+
+    // Left operand
+    Value lhs = addOp.getLhs();
+    if (auto constOp = lhs.getDefiningOp<ConstantOp>()) {
+      if (auto intAttr = constOp.getValue().dyn_cast<IntegerAttr>()) {
+        os << intAttr.getInt();
+      }
+    } else {
+      os << "$lhs";
+    }
+
+    os << " + ";
+
+    // Right operand
+    Value rhs = addOp.getRhs();
+    if (auto constOp = rhs.getDefiningOp<ConstantOp>()) {
+      if (auto intAttr = constOp.getValue().dyn_cast<IntegerAttr>()) {
+        os << intAttr.getInt();
+      }
+    } else {
+      os << "$rhs";
+    }
+
+    os << "}]\n";
+    return success();
+  }
+
+  // Handle subtraction
+  if (auto subOp = dyn_cast<SubOp>(op)) {
+    os << this->indent(indent) << "set result [expr {";
+
+    Value lhs = subOp.getLhs();
+    if (auto constOp = lhs.getDefiningOp<ConstantOp>()) {
+      if (auto intAttr = constOp.getValue().dyn_cast<IntegerAttr>()) {
+        os << intAttr.getInt();
+      }
+    } else {
+      os << "$lhs";
+    }
+
+    os << " - ";
+
+    Value rhs = subOp.getRhs();
+    if (auto constOp = rhs.getDefiningOp<ConstantOp>()) {
+      if (auto intAttr = constOp.getValue().dyn_cast<IntegerAttr>()) {
+        os << intAttr.getInt();
+      }
+    } else {
+      os << "$rhs";
+    }
+
+    os << "}]\n";
+    return success();
+  }
+
+  // Handle multiplication
+  if (auto mulOp = dyn_cast<MulOp>(op)) {
+    os << this->indent(indent) << "set result [expr {";
+
+    Value lhs = mulOp.getLhs();
+    if (auto constOp = lhs.getDefiningOp<ConstantOp>()) {
+      if (auto intAttr = constOp.getValue().dyn_cast<IntegerAttr>()) {
+        os << intAttr.getInt();
+      }
+    } else {
+      os << "$lhs";
+    }
+
+    os << " * ";
+
+    Value rhs = mulOp.getRhs();
+    if (auto constOp = rhs.getDefiningOp<ConstantOp>()) {
+      if (auto intAttr = constOp.getValue().dyn_cast<IntegerAttr>()) {
+        os << intAttr.getInt();
+      }
+    } else {
+      os << "$rhs";
+    }
+
+    os << "}]\n";
+    return success();
+  }
+
+  // Handle division
+  if (auto divOp = dyn_cast<DivOp>(op)) {
+    os << this->indent(indent) << "set result [expr {";
+
+    Value lhs = divOp.getLhs();
+    if (auto constOp = lhs.getDefiningOp<ConstantOp>()) {
+      if (auto intAttr = constOp.getValue().dyn_cast<IntegerAttr>()) {
+        os << intAttr.getInt();
+      }
+    } else {
+      os << "$lhs";
+    }
+
+    os << " / ";
+
+    Value rhs = divOp.getRhs();
+    if (auto constOp = rhs.getDefiningOp<ConstantOp>()) {
+      if (auto intAttr = constOp.getValue().dyn_cast<IntegerAttr>()) {
+        os << intAttr.getInt();
+      }
+    } else {
+      os << "$rhs";
+    }
+
+    os << "}]\n";
+    return success();
+  }
+
+  // Handle comparison operations
+  if (auto cmpEqOp = dyn_cast<CmpEqOp>(op)) {
+    os << this->indent(indent) << "set result [expr {";
+
+    Value lhs = cmpEqOp.getLhs();
+    if (auto constOp = lhs.getDefiningOp<ConstantOp>()) {
+      if (auto intAttr = constOp.getValue().dyn_cast<IntegerAttr>()) {
+        os << intAttr.getInt();
+      }
+    } else {
+      os << "$lhs";
+    }
+
+    os << " == ";
+
+    Value rhs = cmpEqOp.getRhs();
+    if (auto constOp = rhs.getDefiningOp<ConstantOp>()) {
+      if (auto intAttr = constOp.getValue().dyn_cast<IntegerAttr>()) {
+        os << intAttr.getInt();
+      }
+    } else {
+      os << "$rhs";
+    }
+
+    os << "}]\n";
+    return success();
+  }
+
+  if (auto cmpGtOp = dyn_cast<CmpGtOp>(op)) {
+    os << this->indent(indent) << "set result [expr {";
+
+    Value lhs = cmpGtOp.getLhs();
+    if (auto constOp = lhs.getDefiningOp<ConstantOp>()) {
+      if (auto intAttr = constOp.getValue().dyn_cast<IntegerAttr>()) {
+        os << intAttr.getInt();
+      }
+    } else {
+      os << "$lhs";
+    }
+
+    os << " > ";
+
+    Value rhs = cmpGtOp.getRhs();
+    if (auto constOp = rhs.getDefiningOp<ConstantOp>()) {
+      if (auto intAttr = constOp.getValue().dyn_cast<IntegerAttr>()) {
+        os << intAttr.getInt();
+      }
+    } else {
+      os << "$rhs";
+    }
+
+    os << "}]\n";
+    return success();
+  }
+
+  if (auto cmpLtOp = dyn_cast<CmpLtOp>(op)) {
+    os << this->indent(indent) << "set result [expr {";
+
+    Value lhs = cmpLtOp.getLhs();
+    if (auto constOp = lhs.getDefiningOp<ConstantOp>()) {
+      if (auto intAttr = constOp.getValue().dyn_cast<IntegerAttr>()) {
+        os << intAttr.getInt();
+      }
+    } else {
+      os << "$lhs";
+    }
+
+    os << " < ";
+
+    Value rhs = cmpLtOp.getRhs();
+    if (auto constOp = rhs.getDefiningOp<ConstantOp>()) {
+      if (auto intAttr = constOp.getValue().dyn_cast<IntegerAttr>()) {
+        os << intAttr.getInt();
+      }
+    } else {
+      os << "$rhs";
+    }
+
+    os << "}]\n";
     return success();
   }
 

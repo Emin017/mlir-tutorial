@@ -38,5 +38,13 @@ static TranslateFromMLIRRegistration registerEDAToTcl(
 
 int main(int argc, char **argv) {
   llvm::InitLLVM y(argc, argv);
-  return mlir::failed(mlirTranslateMain(argc, argv, "EDA MLIR Translator"));
+
+  // Register all dialects globally so they're available when parsing
+  DialectRegistry registry;
+  registry.insert<eda::EDADialect>();
+  registry.insert<func::FuncDialect>();
+  registry.insert<arith::ArithDialect>();
+  registerAllDialects(registry);
+
+  return mlir::failed(mlirTranslateMainWithDialectRegistry(argc, argv, "EDA MLIR Translator", registry));
 }
