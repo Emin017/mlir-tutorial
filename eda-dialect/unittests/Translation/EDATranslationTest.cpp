@@ -60,7 +60,13 @@ protected:
       stream << "<value>";
     } else if (auto constOp = dyn_cast<ConstantOp>(op)) {
       if (auto intAttr = constOp.getValue().dyn_cast<IntegerAttr>()) {
-        stream << intAttr.getInt();
+        // For i1 types (booleans), normalize the output
+        if (constOp.getResult().getType().isInteger(1)) {
+          // Convert any non-zero value to 1, and 0 to 0
+          stream << (intAttr.getValue() != 0 ? "1" : "0");
+        } else {
+          stream << intAttr.getInt();
+        }
       } else if (auto stringAttr = constOp.getValue().dyn_cast<StringAttr>()) {
         stream << "\"" << stringAttr.getValue() << "\"";
       }
